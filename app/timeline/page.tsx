@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import ProgressBar from "@/components/ProgressBar";
-import PostRow, { type PostRowData } from "@/components/PostRow";
+import TimelineTable from "@/components/TimelineTable";
+import type { PostRowData } from "@/components/PostRow";
 
 export const dynamic = "force-dynamic";
 
 export default async function TimelinePage() {
   const posts: PostRowData[] = await prisma.post.findMany({
-    orderBy: { createdAt: "asc" },
+    // Posts with a scheduled date come first (soonest next), posts without
+    // one fall to the end in the order they were created.
+    orderBy: [{ scheduledDate: "asc" }, { createdAt: "asc" }],
   });
 
   const doneCount = posts.filter((p: PostRowData) => p.done).length;
@@ -18,8 +21,8 @@ export default async function TimelinePage() {
         <div>
           <h1 className="text-2xl font-semibold">Content Timeline</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Everything you've planned, generated, and published — updates live as you add
-            posts.
+            Everything you've planned, generated, and published — sorted by scheduled date,
+            updates live as you add posts.
           </p>
         </div>
         <div className="w-64 shrink-0">
@@ -38,27 +41,7 @@ export default async function TimelinePage() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <table className="w-full text-left">
-            <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-3">Done</th>
-                <th className="px-4 py-3">#</th>
-                <th className="px-4 py-3">Image</th>
-                <th className="px-4 py-3">Theme</th>
-                <th className="px-4 py-3">Post</th>
-                <th className="px-4 py-3">Caption</th>
-                <th className="px-4 py-3">Image Prompt</th>
-                <th className="px-4 py-3">Quick Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {posts.map((post, i) => (
-                <PostRow key={post.id} post={post} index={i} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TimelineTable posts={posts} />
       )}
     </div>
   );

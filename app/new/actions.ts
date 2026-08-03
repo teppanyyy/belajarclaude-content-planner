@@ -7,12 +7,13 @@ import { generateCaptionAndPrompt, type ImageInput } from "@/lib/anthropic";
 export async function generateContentAction(
   theme: string,
   topic: string,
-  image?: ImageInput
+  image?: ImageInput,
+  notes?: string
 ) {
   if (!theme.trim() || !topic.trim()) {
     throw new Error("Theme and topic/title are both required.");
   }
-  return generateCaptionAndPrompt(theme, topic, image);
+  return generateCaptionAndPrompt(theme, topic, image, notes);
 }
 
 export async function createPostAction(input: {

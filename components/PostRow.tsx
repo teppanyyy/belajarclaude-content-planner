@@ -21,6 +21,15 @@ function getImageExtension(dataUrl: string) {
   return ext === "jpeg" ? "jpg" : ext;
 }
 
+function formatScheduledDate(date: Date | null) {
+  if (!date) return "Not scheduled";
+  return new Date(date).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export default function PostRow({ post, index }: { post: PostRowData; index: number }) {
   const [expanded, setExpanded] = useState<"caption" | "imagePrompt" | null>(null);
   const [done, setDone] = useState(post.done);
@@ -80,6 +89,9 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
         >
           {post.title}
         </td>
+        <td className="px-4 py-3 text-gray-600">
+          {formatScheduledDate(post.scheduledDate)}
+        </td>
         <td className="px-4 py-3">
           <button
             type="button"
@@ -126,7 +138,7 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
       </tr>
       {expanded && (
         <tr className="border-b border-gray-100 bg-gray-50 text-sm">
-          <td colSpan={8} className="px-4 py-3 whitespace-pre-wrap text-gray-700">
+          <td colSpan={9} className="px-4 py-3 whitespace-pre-wrap text-gray-700">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
               {expanded === "caption" ? "Caption" : "Image Prompt"}
             </span>

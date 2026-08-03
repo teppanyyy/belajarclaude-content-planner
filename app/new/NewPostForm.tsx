@@ -17,6 +17,7 @@ export default function NewPostForm() {
   const [topic, setTopic] = useState("");
   const [caption, setCaption] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
+  const [notes, setNotes] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, startGenerating] = useTransition();
@@ -61,7 +62,7 @@ export default function NewPostForm() {
     setError(null);
     startGenerating(async () => {
       try {
-        const result = await generateContentAction(theme, topic, imageData ?? undefined);
+        const result = await generateContentAction(theme, topic, imageData ?? undefined, notes);
         setCaption(result.caption);
         setImagePrompt(result.imagePrompt);
       } catch (err) {
@@ -125,6 +126,19 @@ export default function NewPostForm() {
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="e.g. Prompt Claude AI untuk Analisis Data"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Additional prompt / notes (optional)
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            placeholder="Any extra instructions for Claude — tone, specific points to hit, things to avoid, etc."
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
