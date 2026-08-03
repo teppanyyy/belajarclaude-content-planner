@@ -13,6 +13,7 @@ model Post {
   title         String
   caption       String?   @db.Text
   imagePrompt   String?   @db.Text
+  imageDataUrl  String?   @db.Text
   done          Boolean   @default(false)
   scheduledDate DateTime?
   createdAt     DateTime  @default(now())

@@ -10,9 +10,16 @@ export type PostRowData = {
   title: string;
   caption: string | null;
   imagePrompt: string | null;
+  imageDataUrl: string | null;
   done: boolean;
   scheduledDate: Date | null;
 };
+
+function getImageExtension(dataUrl: string) {
+  const match = dataUrl.match(/^data:image\/([a-zA-Z]+);/);
+  const ext = match ? match[1] : "jpg";
+  return ext === "jpeg" ? "jpg" : ext;
+}
 
 export default function PostRow({ post, index }: { post: PostRowData; index: number }) {
   const [expanded, setExpanded] = useState<"caption" | "imagePrompt" | null>(null);
@@ -47,6 +54,20 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           />
         </td>
         <td className="px-4 py-3 font-medium text-gray-500">{index + 1}</td>
+        <td className="px-4 py-3">
+          {post.imageDataUrl ? (
+            <a href={post.imageDataUrl} target="_blank" rel="noopener noreferrer">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={post.imageDataUrl}
+                alt={post.title}
+                className="h-12 w-12 rounded-md border border-gray-200 object-cover hover:opacity-80"
+              />
+            </a>
+          ) : (
+            <span className="text-xs text-gray-300">—</span>
+          )}
+        </td>
         <td className="px-4 py-3">
           <span className="rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent">
             {post.theme}
@@ -83,6 +104,15 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           <div className="flex gap-2">
             <CopyButton text={post.caption ?? ""} label="Copy Caption" />
             <CopyButton text={post.imagePrompt ?? ""} label="Copy Prompt" />
+            {post.imageDataUrl && (
+              <a
+                href={post.imageDataUrl}
+                download={`post-${post.id}.${getImageExtension(post.imageDataUrl)}`}
+                className="rounded-md bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700"
+              >
+                Download Image
+              </a>
+            )}
             <button
               type="button"
               onClick={handleDelete}
@@ -96,7 +126,7 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
       </tr>
       {expanded && (
         <tr className="border-b border-gray-100 bg-gray-50 text-sm">
-          <td colSpan={7} className="px-4 py-3 whitespace-pre-wrap text-gray-700">
+          <td colSpan={8} className="px-4 py-3 whitespace-pre-wrap text-gray-700">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
               {expanded === "caption" ? "Caption" : "Image Prompt"}
             </span>

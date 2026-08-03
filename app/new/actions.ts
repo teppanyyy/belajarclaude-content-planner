@@ -2,13 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { generateCaptionAndPrompt } from "@/lib/anthropic";
+import { generateCaptionAndPrompt, type ImageInput } from "@/lib/anthropic";
 
-export async function generateContentAction(theme: string, topic: string) {
+export async function generateContentAction(
+  theme: string,
+  topic: string,
+  image?: ImageInput
+) {
   if (!theme.trim() || !topic.trim()) {
     throw new Error("Theme and topic/title are both required.");
   }
-  return generateCaptionAndPrompt(theme, topic);
+  return generateCaptionAndPrompt(theme, topic, image);
 }
 
 export async function createPostAction(input: {
@@ -17,6 +21,7 @@ export async function createPostAction(input: {
   caption: string;
   imagePrompt: string;
   scheduledDate?: string;
+  imageDataUrl?: string;
 }) {
   if (!input.theme.trim() || !input.title.trim()) {
     throw new Error("Theme and title are required.");
@@ -29,6 +34,7 @@ export async function createPostAction(input: {
       caption: input.caption.trim() || null,
       imagePrompt: input.imagePrompt.trim() || null,
       scheduledDate: input.scheduledDate ? new Date(input.scheduledDate) : null,
+      imageDataUrl: input.imageDataUrl || null,
     },
   });
 

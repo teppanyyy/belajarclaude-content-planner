@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { generateContentAction, createPostAction } from "./actions";
+import type { ImageInput } from "@/lib/anthropic";
 
 const THEME_SUGGESTIONS = [
   "Prompt of the Day",
@@ -21,11 +22,46 @@ export default function NewPostForm() {
   const [isGenerating, startGenerating] = useTransition();
   const [isSaving, startSaving] = useTransition();
 
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageData, setImageData] = useState<ImageInput | null>(null);
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      setError("That image is too large — please use one under 8MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const match = dataUrl.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,(.*)$/);
+      if (!match) {
+        setError("Unsupported image type — please use JPG, PNG, GIF, or WEBP.");
+        return;
+      }
+      setImageData({
+        mediaType: match[1] as ImageInput["mediaType"],
+        base64: match[2],
+      });
+      setImagePreview(dataUrl);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleRemoveImage() {
+    setImageData(null);
+    setImagePreview(null);
+  }
+
   function handleGenerate() {
     setError(null);
     startGenerating(async () => {
       try {
-        const result = await generateContentAction(theme, topic);
+        const result = await generateContentAction(theme, topic, imageData ?? undefined);
         setCaption(result.caption);
         setImagePrompt(result.imagePrompt);
       } catch (err) {
@@ -38,7 +74,14 @@ export default function NewPostForm() {
     setError(null);
     startSaving(async () => {
       try {
-        await createPostAction({ theme, title: topic, caption, imagePrompt, scheduledDate });
+        await createPostAction({
+          theme,
+          title: topic,
+          caption,
+          imagePrompt,
+          scheduledDate,
+          imageDataUrl: imagePreview ?? undefined,
+        });
         router.push("/timeline");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save post.");
@@ -96,6 +139,38 @@ export default function NewPostForm() {
             onChange={(e) => setScheduledDate(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Reference image (optional)
+          </label>
+          <p className="mb-2 text-xs text-gray-500">
+            Attach a photo or screenshot and Claude will look at it while writing the caption.
+          </p>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            onChange={handleImageChange}
+            className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-accent-light file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-accent hover:file:opacity-90"
+          />
+          {imagePreview && (
+            <div className="mt-3 flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePreview}
+                alt="Selected reference"
+                className="h-20 w-20 rounded-md border border-gray-200 object-cover"
+              />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="text-xs font-medium text-gray-500 hover:text-red-500"
+              >
+                Remove image
+              </button>
+            </div>
+          )}
         </div>
 
         <button
