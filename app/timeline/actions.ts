@@ -26,3 +26,25 @@ export async function updatePostImageAction(id: number, imageDataUrl: string) {
   });
   revalidatePath("/timeline");
 }
+
+export async function updatePostDateAction(id: number, scheduledDate: string) {
+  await prisma.post.update({
+    where: { id },
+    data: { scheduledDate: scheduledDate ? new Date(scheduledDate) : null },
+  });
+  revalidatePath("/timeline");
+}
+
+export async function updatePostContentAction(
+  id: number,
+  data: { caption: string; imagePrompt: string }
+) {
+  await prisma.post.update({
+    where: { id },
+    data: {
+      caption: data.caption.trim() || null,
+      imagePrompt: data.imagePrompt.trim() || null,
+    },
+  });
+  revalidatePath("/timeline");
+}

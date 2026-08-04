@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toggleDoneAction, deletePostAction, updatePostImageAction } from "@/app/timeline/actions";
+import {
+  toggleDoneAction,
+  deletePostAction,
+  updatePostImageAction,
+  updatePostDateAction,
+  updatePostContentAction,
+} from "@/app/timeline/actions";
 import CopyButton from "./CopyButton";
 
 export type PostRowData = {
@@ -21,19 +27,19 @@ function getImageExtension(dataUrl: string) {
   return ext === "jpeg" ? "jpg" : ext;
 }
 
-function formatScheduledDate(date: Date | null) {
-  if (!date) return "Not scheduled";
-  return new Date(date).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+function toDateInputValue(date: Date | null) {
+  if (!date) return "";
+  return new Date(date).toISOString().slice(0, 10);
 }
 
 export default function PostRow({ post, index }: { post: PostRowData; index: number }) {
   const [done, setDone] = useState(post.done);
   const [imageDataUrl, setImageDataUrl] = useState(post.imageDataUrl);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [scheduledDate, setScheduledDate] = useState(toDateInputValue(post.scheduledDate));
+  const [isEditing, setIsEditing] = useState(false);
+  const [caption, setCaption] = useState(post.caption ?? "");
+  const [imagePrompt, setImagePrompt] = useState(post.imagePrompt ?? "");
   const [isPending, startTransition] = useTransition();
 
   function handleToggle() {
@@ -77,6 +83,27 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
     reader.readAsDataURL(file);
   }
 
+  function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value;
+    setScheduledDate(next);
+    startTransition(async () => {
+      await updatePostDateAction(post.id, next);
+    });
+  }
+
+  function handleSaveContent() {
+    startTransition(async () => {
+      await updatePostContentAction(post.id, { caption, imagePrompt });
+    });
+    setIsEditing(false);
+  }
+
+  function handleCancelEdit() {
+    setCaption(post.caption ?? "");
+    setImagePrompt(post.imagePrompt ?? "");
+    setIsEditing(false);
+  }
+
   return (
     <>
       <tr className="border-b border-gray-100 text-sm">
@@ -116,13 +143,25 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
         >
           {post.title}
         </td>
-        <td className="px-4 py-3 text-gray-600">
-          {formatScheduledDate(post.scheduledDate)}
+        <td className="px-4 py-3">
+          <input
+            type="date"
+            value={scheduledDate}
+            onChange={handleDateChange}
+            className="rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-700 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
         </td>
         <td className="px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
-            <CopyButton text={post.caption ?? ""} label="Copy Caption" />
-            <CopyButton text={post.imagePrompt ?? ""} label="Copy Prompt" />
+            <CopyButton text={caption} label="Copy Caption" />
+            <CopyButton text={imagePrompt} label="Copy Prompt" />
+            <button
+              type="button"
+              onClick={() => setIsEditing((prev) => !prev)}
+              className="w-32 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            >
+              {isEditing ? "Close Editor" : "Edit Text"}
+            </button>
             <label
               htmlFor={`import-image-${post.id}`}
               className="w-32 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
@@ -161,6 +200,52 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           {imageError && <p className="mt-1 text-xs text-red-500">{imageError}</p>}
         </td>
       </tr>
+      {isEditing && (
+        <tr className="border-b border-gray-100 bg-gray-50 text-sm">
+          <td colSpan={7} className="px-4 py-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Caption
+                </label>
+                <textarea
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  rows={5}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Image Prompt
+                </label>
+                <textarea
+                  value={imagePrompt}
+                  onChange={(e) => setImagePrompt(e.target.value)}
+                  rows={5}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSaveContent}
+                className="rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:opacity-90"
+              >
+                Save Changes
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="rounded-md border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </td>
+        </tr>
+      )}
     </>
   );
 }
