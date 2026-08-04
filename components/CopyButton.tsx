@@ -17,7 +17,7 @@ export default function CopyButton({ text, label }: { text: string; label: strin
       type="button"
       onClick={handleCopy}
       disabled={!text}
-      className="rounded-md bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+      className="w-32 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
     >
       {copied ? "Copied!" : label}
     </button>

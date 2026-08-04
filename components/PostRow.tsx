@@ -31,7 +31,6 @@ function formatScheduledDate(date: Date | null) {
 }
 
 export default function PostRow({ post, index }: { post: PostRowData; index: number }) {
-  const [expanded, setExpanded] = useState<"caption" | null>(null);
   const [done, setDone] = useState(post.done);
   const [isPending, startTransition] = useTransition();
 
@@ -93,27 +92,21 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           {formatScheduledDate(post.scheduledDate)}
         </td>
         <td className="px-4 py-3">
-          <button
-            type="button"
-            onClick={() => setExpanded(expanded === "caption" ? null : "caption")}
-            className="text-accent hover:underline disabled:text-gray-300"
-            disabled={!post.caption}
-          >
-            View Caption
-          </button>
-        </td>
-        <td className="px-4 py-3">
           <div className="flex gap-2">
             <CopyButton text={post.caption ?? ""} label="Copy Caption" />
             <CopyButton text={post.imagePrompt ?? ""} label="Copy Prompt" />
-            {post.imageDataUrl && (
+            {post.imageDataUrl ? (
               <a
                 href={post.imageDataUrl}
                 download={`post-${post.id}.${getImageExtension(post.imageDataUrl)}`}
-                className="rounded-md bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700"
+                className="w-32 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
               >
                 Download Image
               </a>
+            ) : (
+              <span className="w-32 rounded-md border border-gray-100 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-300">
+                Download Image
+              </span>
             )}
             <button
               type="button"
@@ -126,16 +119,6 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           </div>
         </td>
       </tr>
-      {expanded === "caption" && (
-        <tr className="border-b border-gray-100 bg-gray-50 text-sm">
-          <td colSpan={8} className="px-4 py-3 whitespace-pre-wrap text-gray-700">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Caption
-            </span>
-            {post.caption}
-          </td>
-        </tr>
-      )}
     </>
   );
 }
