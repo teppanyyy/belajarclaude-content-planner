@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toggleDoneAction, deletePostAction } from "@/app/timeline/actions";
+import { toggleDoneAction, deletePostAction, updatePostImageAction } from "@/app/timeline/actions";
 import CopyButton from "./CopyButton";
 
 export type PostRowData = {
@@ -32,6 +32,8 @@ function formatScheduledDate(date: Date | null) {
 
 export default function PostRow({ post, index }: { post: PostRowData; index: number }) {
   const [done, setDone] = useState(post.done);
+  const [imageDataUrl, setImageDataUrl] = useState(post.imageDataUrl);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleToggle() {
@@ -49,6 +51,32 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
     });
   }
 
+  function handleImportImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      setImageError("That image is too large — please use one under 8MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (!/^data:image\/(jpeg|png|gif|webp);base64,/.test(dataUrl)) {
+        setImageError("Unsupported image type — please use JPG, PNG, GIF, or WEBP.");
+        return;
+      }
+      setImageError(null);
+      setImageDataUrl(dataUrl);
+      startTransition(async () => {
+        await updatePostImageAction(post.id, dataUrl);
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
   return (
     <>
       <tr className="border-b border-gray-100 text-sm">
@@ -63,11 +91,11 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
         </td>
         <td className="px-4 py-3 font-medium text-gray-500">{index + 1}</td>
         <td className="px-4 py-3">
-          {post.imageDataUrl ? (
-            <a href={post.imageDataUrl} target="_blank" rel="noopener noreferrer">
+          {imageDataUrl ? (
+            <a href={imageDataUrl} target="_blank" rel="noopener noreferrer">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={post.imageDataUrl}
+                src={imageDataUrl}
                 alt={post.title}
                 className="h-12 w-12 rounded-md border border-gray-200 object-cover hover:opacity-80"
               />
@@ -92,13 +120,26 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           {formatScheduledDate(post.scheduledDate)}
         </td>
         <td className="px-4 py-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <CopyButton text={post.caption ?? ""} label="Copy Caption" />
             <CopyButton text={post.imagePrompt ?? ""} label="Copy Prompt" />
-            {post.imageDataUrl ? (
+            <label
+              htmlFor={`import-image-${post.id}`}
+              className="w-32 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            >
+              {imageDataUrl ? "Replace Image" : "Import Image"}
+            </label>
+            <input
+              id={`import-image-${post.id}`}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              onChange={handleImportImage}
+              className="hidden"
+            />
+            {imageDataUrl ? (
               <a
-                href={post.imageDataUrl}
-                download={`post-${post.id}.${getImageExtension(post.imageDataUrl)}`}
+                href={imageDataUrl}
+                download={`post-${post.id}.${getImageExtension(imageDataUrl)}`}
                 className="w-32 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
               >
                 Download Image
@@ -117,6 +158,7 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
               ✕
             </button>
           </div>
+          {imageError && <p className="mt-1 text-xs text-red-500">{imageError}</p>}
         </td>
       </tr>
     </>

@@ -15,3 +15,14 @@ export async function deletePostAction(id: number) {
   await prisma.post.delete({ where: { id } });
   revalidatePath("/timeline");
 }
+
+export async function updatePostImageAction(id: number, imageDataUrl: string) {
+  if (!imageDataUrl.trim()) {
+    throw new Error("No image data received.");
+  }
+  await prisma.post.update({
+    where: { id },
+    data: { imageDataUrl },
+  });
+  revalidatePath("/timeline");
+}
