@@ -21,3 +21,11 @@ model Post {
 
   @@index([createdAt])
 }
+
+// Singleton row (id is always 1) holding the editable brand visual style
+// guide used to build every generated image prompt.
+model BrandSettings {
+  id         Int      @id @default(1)
+  styleGuide String   @db.Text
+  updatedAt  DateTime @updatedAt
+}

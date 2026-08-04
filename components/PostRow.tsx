@@ -31,7 +31,7 @@ function formatScheduledDate(date: Date | null) {
 }
 
 export default function PostRow({ post, index }: { post: PostRowData; index: number }) {
-  const [expanded, setExpanded] = useState<"caption" | "imagePrompt" | null>(null);
+  const [expanded, setExpanded] = useState<"caption" | null>(null);
   const [done, setDone] = useState(post.done);
   const [isPending, startTransition] = useTransition();
 
@@ -103,16 +103,6 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           </button>
         </td>
         <td className="px-4 py-3">
-          <button
-            type="button"
-            onClick={() => setExpanded(expanded === "imagePrompt" ? null : "imagePrompt")}
-            className="text-accent hover:underline disabled:text-gray-300"
-            disabled={!post.imagePrompt}
-          >
-            View Prompt
-          </button>
-        </td>
-        <td className="px-4 py-3">
           <div className="flex gap-2">
             <CopyButton text={post.caption ?? ""} label="Copy Caption" />
             <CopyButton text={post.imagePrompt ?? ""} label="Copy Prompt" />
@@ -136,13 +126,13 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           </div>
         </td>
       </tr>
-      {expanded && (
+      {expanded === "caption" && (
         <tr className="border-b border-gray-100 bg-gray-50 text-sm">
-          <td colSpan={9} className="px-4 py-3 whitespace-pre-wrap text-gray-700">
+          <td colSpan={8} className="px-4 py-3 whitespace-pre-wrap text-gray-700">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-              {expanded === "caption" ? "Caption" : "Image Prompt"}
+              Caption
             </span>
-            {expanded === "caption" ? post.caption : post.imagePrompt}
+            {post.caption}
           </td>
         </tr>
       )}

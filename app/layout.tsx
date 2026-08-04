@@ -37,6 +37,18 @@ export default function RootLayout({
                 >
                   + New Post
                 </Link>
+                <Link
+                  href="/plan"
+                  className="rounded-md px-3 py-1.5 hover:bg-white hover:shadow-sm"
+                >
+                  Weekly Plan
+                </Link>
+                <Link
+                  href="/settings"
+                  className="rounded-md px-3 py-1.5 hover:bg-white hover:shadow-sm"
+                >
+                  Brand Settings
+                </Link>
               </nav>
             </div>
           </header>

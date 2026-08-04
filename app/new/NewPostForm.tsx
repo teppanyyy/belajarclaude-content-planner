@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { generateContentAction, createPostAction } from "./actions";
+import { generateContentAction, createPostAction, generateImageAction } from "./actions";
 import type { ImageInput } from "@/lib/anthropic";
 
 const THEME_SUGGESTIONS = [
@@ -25,6 +25,9 @@ export default function NewPostForm() {
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageData, setImageData] = useState<ImageInput | null>(null);
+
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [isGeneratingImage, startGeneratingImage] = useTransition();
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -71,6 +74,18 @@ export default function NewPostForm() {
     });
   }
 
+  function handleGenerateImage() {
+    setError(null);
+    startGeneratingImage(async () => {
+      try {
+        const url = await generateImageAction(imagePrompt, imagePreview ?? undefined);
+        setGeneratedImageUrl(url);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to generate image.");
+      }
+    });
+  }
+
   function handleSave() {
     setError(null);
     startSaving(async () => {
@@ -81,7 +96,7 @@ export default function NewPostForm() {
           caption,
           imagePrompt,
           scheduledDate,
-          imageDataUrl: imagePreview ?? undefined,
+          imageDataUrl: generatedImageUrl ?? imagePreview ?? undefined,
         });
         router.push("/timeline");
       } catch (err) {
@@ -217,6 +232,38 @@ export default function NewPostForm() {
             placeholder="Generated AI image prompt will appear here."
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={handleGenerateImage}
+            disabled={isGeneratingImage || !imagePrompt.trim()}
+            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isGeneratingImage ? "Generating image with OpenAI..." : "Generate Image from Prompt"}
+          </button>
+          <p className="mt-1 text-xs text-gray-400">
+            Renders the image prompt above into an actual picture (costs a small amount per
+            image via OpenAI). This is what gets saved with the post.
+          </p>
+          {generatedImageUrl && (
+            <div className="mt-3 flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={generatedImageUrl}
+                alt="Generated post image"
+                className="h-32 w-32 rounded-md border border-gray-200 object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => setGeneratedImageUrl(null)}
+                className="text-xs font-medium text-gray-500 hover:text-red-500"
+              >
+                Remove generated image
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

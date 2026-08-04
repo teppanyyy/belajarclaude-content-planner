@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateCaptionAndPrompt, type ImageInput } from "@/lib/anthropic";
+import { getBrandStyleGuide } from "@/lib/brand";
+import { generateImageFromPrompt } from "@/lib/openai";
 
 export async function generateContentAction(
   theme: string,
@@ -13,7 +15,18 @@ export async function generateContentAction(
   if (!theme.trim() || !topic.trim()) {
     throw new Error("Theme and topic/title are both required.");
   }
-  return generateCaptionAndPrompt(theme, topic, image, notes);
+  const styleGuide = await getBrandStyleGuide();
+  return generateCaptionAndPrompt(theme, topic, image, notes, styleGuide);
+}
+
+export async function generateImageAction(
+  imagePrompt: string,
+  referenceImageDataUrl?: string
+) {
+  if (!imagePrompt.trim()) {
+    throw new Error("Generate an image prompt first.");
+  }
+  return generateImageFromPrompt(imagePrompt.trim(), { referenceImageDataUrl });
 }
 
 export async function createPostAction(input: {

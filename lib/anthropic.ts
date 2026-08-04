@@ -19,6 +19,23 @@ export type GeneratedContent = {
   imagePrompt: string;
 };
 
+/**
+ * Real brand context for belajarclaude.id, shared by both the single-post
+ * and weekly-batch generators so every caption stays grounded in the
+ * actual product instead of generic AI-education fluff.
+ */
+const BRAND_CONTEXT = `You write Instagram content for BelajarClaude (belajarclaude.id), positioned as "Belajar Claude untuk Kerja & Bisnis" — practical Claude AI courses and guides, entirely in Bahasa Indonesia, for professionals, UKM/small business owners, and students in Indonesia. Many followers are not very tech-savvy and are new to AI, so explain things simply without being condescending.
+
+The platform sells one "All Access" package: Rp 399K, one-time payment, lifetime access to the whole course library including future courses (no subscription). The course library:
+- "20 Prompt Dasar" — ready-to-use prompts for email, laporan, dan konten sosmed, tinggal copy-paste.
+- "Dasar Claude AI" — dari nol sampai bisa pakai Claude untuk kebutuhan sehari-hari.
+- "Produktivitas Kantor" — hemat 3-5 jam kerja per minggu pakai Claude dengan Gmail, Sheets, Docs, dan Claude Projects.
+- "Kreasi Konten Pemasaran" — positioning, konten Instagram, copy iklan, sampai komunikasi pelanggan lewat WhatsApp.
+
+Real workflow examples the brand uses to build trust (draw on these for ideas when relevant, don't force all of them in): a freelancer turning a messy WhatsApp brief into a scope of work + timeline + quote in 10 minutes; a content creator turning 1 topic into 15 pieces of content across platforms; an operations person turning a short story into a step-by-step SOP in 1 hour; a marketer generating 30 caption variations for a month of scheduled posts; a business owner getting a quick health check of sales/cashflow/team notes plus 3 priority actions; a sales manager producing 5 personalized partnership proposals via a prompt chain.
+
+Tone: friendly, practical, encouraging, professional but approachable, a little playful is fine, never condescending. Captions should be concise (roughly 60-150 words), end with 3-6 relevant hashtags where natural, and include a light call-to-action — ideally pointing to belajarclaude.id or a relevant course above when it genuinely fits, without forcing a sales pitch into every single post.`;
+
 export type ImageInput = {
   base64: string;
   mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
@@ -34,11 +51,35 @@ export async function generateCaptionAndPrompt(
   theme: string,
   topic: string,
   image?: ImageInput,
-  notes?: string
+  notes?: string,
+  styleGuide?: string
 ): Promise<GeneratedContent> {
   const anthropic = getAnthropicClient();
 
-  const systemPrompt = `You write Instagram content for an account that teaches people how to use Claude AI (an assistant by Anthropic) in everyday life and small business. Tone: friendly, practical, a little playful, in Bahasa Indonesia unless the topic is clearly in English. Keep captions concise (under ~120 words), end with 3-6 relevant hashtags, and include a light call-to-action (e.g. "Coba yuk!" / "Save buat nanti"). If a reference image is provided, look at it closely and let the caption genuinely reflect what's shown in it, not just the topic text. The image prompt should describe a clean, modern, minimal social-media graphic (not a photo of a person) that visually represents the topic - suitable for an AI image generator.
+  const styleInstructions = styleGuide
+    ? `The image prompt you write MUST follow this exact brand visual style guide, adapting only the headline/content described below to fit the topic:\n${styleGuide}${
+        image
+          ? "\n\nA reference image is also attached, showing this style already applied to a real post — use it to double-check details like the logo, colors, and layout, but the style guide above is the authoritative spec."
+          : ""
+      }`
+    : image
+    ? "A reference image is provided — look at it closely and match its exact visual style (background, colors, layout, typography, icons) in the image prompt you write."
+    : "The image prompt should describe a clean, modern, minimal social-media graphic (not a photo of a person) suitable for an AI image generator.";
+
+  const specificityInstructions = `Write the image prompt with maximum, literal specificity so an AI image generator reproduces it exactly rather than approximately:
+- Quote the EXACT on-image text word-for-word in quotation marks for every text element (headline, price/number, CTA button label, any bullet labels, etc). Never paraphrase or shorten it.
+- State every color as its literal hex code (e.g. "background #5B3FC4"), never a vague color name, whenever the style guide gives one.
+- Name the exact fonts for each text element when the style guide specifies them.
+- Describe the exact layout, spacing, and logo placement from the style guide as concrete instructions, not a general impression.
+- If additional instructions/notes are given below, make sure anything specific in them (exact wording, elements to include or exclude, layout tweaks) is reflected in the image prompt itself, not only the caption.`;
+
+  const systemPrompt = `${BRAND_CONTEXT}
+
+If a reference image is provided, also let the caption genuinely reflect what's shown in it, not just the topic text.
+
+${styleInstructions}
+
+${specificityInstructions}
 
 Respond with ONLY raw JSON and nothing else — no markdown code fences (no \`\`\`), no commentary before or after, no leading/trailing whitespace beyond the object itself. The entire response body must be exactly this shape and nothing more:
 {"caption": "...", "imagePrompt": "..."}`;
@@ -63,7 +104,7 @@ Respond with ONLY raw JSON and nothing else — no markdown code fences (no \`\`
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-5",
-    max_tokens: 1024,
+    max_tokens: 2048,
     system: systemPrompt,
     messages: [{ role: "user", content }],
   });
@@ -72,6 +113,126 @@ Respond with ONLY raw JSON and nothing else — no markdown code fences (no \`\`
   const raw = textBlock && "text" in textBlock ? textBlock.text : "";
 
   return parseGeneratedContent(raw);
+}
+
+export type WeeklyPlanItem = {
+  theme: string;
+  title: string;
+  caption: string;
+  imagePrompt: string;
+};
+
+/**
+ * Generates a batch of N Instagram posts (theme, title, caption, image
+ * prompt) in one shot, for a weekly content plan. If a reference image is
+ * provided, Claude examines it first and locks every image prompt to that
+ * same visual style, only changing the headline/content per post.
+ */
+export async function generateWeeklyPlan(params: {
+  count: number;
+  themes: string[];
+  audience: string;
+  notes?: string;
+  image?: ImageInput;
+  styleGuide?: string;
+}): Promise<WeeklyPlanItem[]> {
+  const anthropic = getAnthropicClient();
+  const { count, themes, audience, notes, image, styleGuide } = params;
+
+  const styleInstructions = styleGuide
+    ? `Every image prompt you write MUST follow this exact brand visual style guide, adapting only the headline/content per post to fit each topic:\n${styleGuide}${
+        image
+          ? "\n\nA reference image is also attached, showing this style already applied to a real post — use it to double-check details like the logo, colors, and layout, but the style guide above is the authoritative spec."
+          : ""
+      }`
+    : image
+    ? "A reference image is attached — look at it closely first and identify its exact visual style: background, color palette, layout structure, typography, iconography, card/footer treatment, and branding elements. Every image prompt you write below must describe a new graphic that matches this exact style, changing only the headline/content per post."
+    : "No reference image or style guide was provided — invent one consistent, clean, modern, minimal visual style (soft color palette, simple layout, friendly icons) and describe it identically across every image prompt below so the whole batch looks like one cohesive series.";
+
+  const specificityInstructions = `Write every image prompt with maximum, literal specificity so an AI image generator reproduces it exactly rather than approximately:
+- Quote the EXACT on-image text word-for-word in quotation marks for every text element (headline, price/number, CTA button label, any bullet labels, etc). Never paraphrase or shorten it.
+- State every color as its literal hex code (e.g. "background #5B3FC4"), never a vague color name, whenever the style guide gives one.
+- Name the exact fonts for each text element when the style guide specifies them.
+- Describe the exact layout, spacing, and logo placement from the style guide as concrete instructions, not a general impression.
+- If additional instructions/notes are given below, make sure anything specific in them (exact wording, elements to include or exclude, layout tweaks) is reflected in every image prompt, not only the captions.`;
+
+  const systemPrompt = `${BRAND_CONTEXT}
+
+Target audience for this specific batch: ${audience}
+
+${styleInstructions}
+
+${specificityInstructions}
+
+Rotate across these themes, distributing them naturally across the posts (repeat themes as needed to fill the count, weighting earlier themes in the list a bit more heavily): ${themes.join(
+    ", "
+  )}.
+
+${notes && notes.trim() ? `Additional instructions for this batch: ${notes.trim()}` : ""}
+
+Generate exactly ${count} posts. Respond with ONLY a raw JSON array and nothing else — no markdown code fences, no commentary before or after. Each item must have exactly this shape:
+{"theme": "...", "title": "...", "caption": "...", "imagePrompt": "..."}`;
+
+  const userText = `Generate the ${count}-post content plan now.`;
+
+  const content: any = image
+    ? [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: image.mediaType,
+            data: image.base64,
+          },
+        },
+        { type: "text", text: userText },
+      ]
+    : userText;
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 12000,
+    system: systemPrompt,
+    messages: [{ role: "user", content }],
+  });
+
+  const textBlock = response.content.find((block) => block.type === "text");
+  const raw = textBlock && "text" in textBlock ? textBlock.text : "";
+
+  return parseWeeklyPlan(raw);
+}
+
+function parseWeeklyPlan(raw: string): WeeklyPlanItem[] {
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  const tryParse = (text: string): WeeklyPlanItem[] => {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) throw new Error("Expected a JSON array");
+    return parsed.map((item: any) => ({
+      theme: String(item?.theme ?? "").trim(),
+      title: String(item?.title ?? "").trim(),
+      caption: String(item?.caption ?? "").trim(),
+      imagePrompt: String(item?.imagePrompt ?? "").trim(),
+    }));
+  };
+
+  try {
+    return tryParse(cleaned);
+  } catch {
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        return tryParse(match[0]);
+      } catch {
+        // fall through
+      }
+    }
+    throw new Error("Claude didn't return a valid plan — try generating again.");
+  }
 }
 
 /**

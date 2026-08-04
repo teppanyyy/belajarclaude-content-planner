@@ -51,7 +51,6 @@ export default function TimelineTable({ posts }: { posts: PostRowData[] }) {
                 <th className="px-4 py-3">Post</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Caption</th>
-                <th className="px-4 py-3">Image Prompt</th>
                 <th className="px-4 py-3">Quick Actions</th>
               </tr>
             </thead>
