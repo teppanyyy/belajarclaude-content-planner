@@ -27,8 +27,16 @@ export async function generateWeeklyPlanAction(input: {
     throw new Error("Describe your target audience so Claude can write for them.");
   }
 
-  const styleGuide = await getBrandStyleGuide();
-  return generateWeeklyPlan({ ...input, styleGuide });
+  const [styleGuide, existingPosts] = await Promise.all([
+    getBrandStyleGuide(),
+    prisma.post.findMany({
+      select: { theme: true, title: true },
+      orderBy: { createdAt: "desc" },
+      take: 150,
+    }),
+  ]);
+
+  return generateWeeklyPlan({ ...input, styleGuide, existingPosts });
 }
 
 export async function generateRowImageAction(

@@ -16,16 +16,10 @@ export type PostRowData = {
   title: string;
   caption: string | null;
   imagePrompt: string | null;
-  imageDataUrl: string | null;
+  hasImage: boolean;
   done: boolean;
   scheduledDate: Date | null;
 };
-
-function getImageExtension(dataUrl: string) {
-  const match = dataUrl.match(/^data:image\/([a-zA-Z]+);/);
-  const ext = match ? match[1] : "jpg";
-  return ext === "jpeg" ? "jpg" : ext;
-}
 
 function toDateInputValue(date: Date | null) {
   if (!date) return "";
@@ -34,13 +28,22 @@ function toDateInputValue(date: Date | null) {
 
 export default function PostRow({ post, index }: { post: PostRowData; index: number }) {
   const [done, setDone] = useState(post.done);
-  const [imageDataUrl, setImageDataUrl] = useState(post.imageDataUrl);
+  // Only holds a value once the user imports/replaces an image *this
+  // session* (so the new image shows immediately without a reload). For
+  // everything else, the thumbnail/preview/download just point at the
+  // /api/posts/[id]/image route, which is fetched lazily by the browser.
+  const [freshImageDataUrl, setFreshImageDataUrl] = useState<string | null>(null);
+  const [hasImage, setHasImage] = useState(post.hasImage);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const [scheduledDate, setScheduledDate] = useState(toDateInputValue(post.scheduledDate));
-  const [isEditing, setIsEditing] = useState(false);
+  const [panel, setPanel] = useState<"closed" | "view" | "edit">("closed");
   const [caption, setCaption] = useState(post.caption ?? "");
   const [imagePrompt, setImagePrompt] = useState(post.imagePrompt ?? "");
   const [isPending, startTransition] = useTransition();
+
+  const imageSrc = freshImageDataUrl ?? (hasImage ? `/api/posts/${post.id}/image` : null);
+  const downloadHref = freshImageDataUrl ?? (hasImage ? `/api/posts/${post.id}/image?download` : null);
 
   function handleToggle() {
     const next = !done;
@@ -75,7 +78,8 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
         return;
       }
       setImageError(null);
-      setImageDataUrl(dataUrl);
+      setFreshImageDataUrl(dataUrl);
+      setHasImage(true);
       startTransition(async () => {
         await updatePostImageAction(post.id, dataUrl);
       });
@@ -95,13 +99,13 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
     startTransition(async () => {
       await updatePostContentAction(post.id, { caption, imagePrompt });
     });
-    setIsEditing(false);
+    setPanel("view");
   }
 
   function handleCancelEdit() {
     setCaption(post.caption ?? "");
     setImagePrompt(post.imagePrompt ?? "");
-    setIsEditing(false);
+    setPanel("view");
   }
 
   return (
@@ -118,15 +122,21 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
         </td>
         <td className="px-4 py-3 font-medium text-gray-500">{index + 1}</td>
         <td className="px-4 py-3">
-          {imageDataUrl ? (
-            <a href={imageDataUrl} target="_blank" rel="noopener noreferrer">
+          {imageSrc ? (
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              className="block"
+              title="Click to preview"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={imageDataUrl}
+                src={imageSrc}
                 alt={post.title}
+                loading="lazy"
                 className="h-12 w-12 rounded-md border border-gray-200 object-cover hover:opacity-80"
               />
-            </a>
+            </button>
           ) : (
             <span className="text-xs text-gray-300">—</span>
           )}
@@ -157,16 +167,16 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
             <CopyButton text={imagePrompt} label="Copy Prompt" />
             <button
               type="button"
-              onClick={() => setIsEditing((prev) => !prev)}
+              onClick={() => setPanel((prev) => (prev === "closed" ? "view" : "closed"))}
               className="w-32 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             >
-              {isEditing ? "Close Editor" : "Edit Text"}
+              {panel === "closed" ? "View Text" : "Close"}
             </button>
             <label
               htmlFor={`import-image-${post.id}`}
               className="w-32 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             >
-              {imageDataUrl ? "Replace Image" : "Import Image"}
+              {imageSrc ? "Replace Image" : "Import Image"}
             </label>
             <input
               id={`import-image-${post.id}`}
@@ -175,10 +185,9 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
               onChange={handleImportImage}
               className="hidden"
             />
-            {imageDataUrl ? (
+            {downloadHref ? (
               <a
-                href={imageDataUrl}
-                download={`post-${post.id}.${getImageExtension(imageDataUrl)}`}
+                href={downloadHref}
                 className="w-32 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-center text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
               >
                 Download Image
@@ -200,47 +209,115 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           {imageError && <p className="mt-1 text-xs text-red-500">{imageError}</p>}
         </td>
       </tr>
-      {isEditing && (
+
+      {panel !== "closed" && (
         <tr className="border-b border-gray-100 bg-gray-50 text-sm">
           <td colSpan={7} className="px-4 py-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Caption
-                </label>
-                <textarea
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  rows={5}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Image Prompt
-                </label>
-                <textarea
-                  value={imagePrompt}
-                  onChange={(e) => setImagePrompt(e.target.value)}
-                  rows={5}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                />
-              </div>
-            </div>
-            <div className="mt-3 flex gap-2">
+            {panel === "view" ? (
+              <>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Caption
+                    </label>
+                    <p className="whitespace-pre-wrap rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                      {caption || <span className="text-gray-300">No caption yet.</span>}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Image Prompt
+                    </label>
+                    <p className="whitespace-pre-wrap rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                      {imagePrompt || <span className="text-gray-300">No image prompt yet.</span>}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPanel("edit")}
+                    className="rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPanel("closed")}
+                    className="rounded-md border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Caption
+                    </label>
+                    <textarea
+                      value={caption}
+                      onChange={(e) => setCaption(e.target.value)}
+                      rows={5}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Image Prompt
+                    </label>
+                    <textarea
+                      value={imagePrompt}
+                      onChange={(e) => setImagePrompt(e.target.value)}
+                      rows={5}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveContent}
+                    className="rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="rounded-md border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </td>
+        </tr>
+      )}
+
+      {showPreview && imageSrc && (
+        <tr>
+          <td colSpan={7} className="p-0">
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8"
+              onClick={() => setShowPreview(false)}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageSrc}
+                alt={post.title}
+                className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
               <button
                 type="button"
-                onClick={handleSaveContent}
-                className="rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                onClick={() => setShowPreview(false)}
+                className="absolute right-6 top-6 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
               >
-                Save Changes
-              </button>
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                className="rounded-md border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100"
-              >
-                Cancel
+                ✕ Close
               </button>
             </div>
           </td>

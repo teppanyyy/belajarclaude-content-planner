@@ -135,9 +135,10 @@ export async function generateWeeklyPlan(params: {
   notes?: string;
   image?: ImageInput;
   styleGuide?: string;
+  existingPosts?: { theme: string; title: string }[];
 }): Promise<WeeklyPlanItem[]> {
   const anthropic = getAnthropicClient();
-  const { count, themes, audience, notes, image, styleGuide } = params;
+  const { count, themes, audience, notes, image, styleGuide, existingPosts } = params;
 
   const styleInstructions = styleGuide
     ? `Every image prompt you write MUST follow this exact brand visual style guide, adapting only the headline/content per post to fit each topic:\n${styleGuide}${
@@ -156,6 +157,13 @@ export async function generateWeeklyPlan(params: {
 - Describe the exact layout, spacing, and logo placement from the style guide as concrete instructions, not a general impression.
 - If additional instructions/notes are given below, make sure anything specific in them (exact wording, elements to include or exclude, layout tweaks) is reflected in every image prompt, not only the captions.`;
 
+  const existingPostsInstructions =
+    existingPosts && existingPosts.length > 0
+      ? `\n\nAVOID REPEATING PAST CONTENT\nThe following posts have already been created/published — do not reuse the same topic, angle, or headline as any of these. Every post in this new batch must be a genuinely new idea within the themes below, even if it revisits a broad theme:\n${existingPosts
+          .map((p) => `- [${p.theme}] ${p.title}`)
+          .join("\n")}`
+      : "";
+
   const systemPrompt = `${BRAND_CONTEXT}
 
 Target audience for this specific batch: ${audience}
@@ -163,6 +171,7 @@ Target audience for this specific batch: ${audience}
 ${styleInstructions}
 
 ${specificityInstructions}
+${existingPostsInstructions}
 
 Rotate across these themes, distributing them naturally across the posts (repeat themes as needed to fill the count, weighting earlier themes in the list a bit more heavily): ${themes.join(
     ", "
