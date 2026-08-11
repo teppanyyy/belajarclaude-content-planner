@@ -27,6 +27,18 @@ export async function updatePostImageAction(id: number, imageDataUrl: string) {
   revalidatePath("/timeline");
 }
 
+export async function updatePostThemeAction(id: number, theme: string) {
+  const trimmed = theme.trim();
+  if (!trimmed) {
+    throw new Error("Theme can't be empty.");
+  }
+  await prisma.post.update({
+    where: { id },
+    data: { theme: trimmed },
+  });
+  revalidatePath("/timeline");
+}
+
 export async function updatePostDateAction(id: number, scheduledDate: string) {
   await prisma.post.update({
     where: { id },

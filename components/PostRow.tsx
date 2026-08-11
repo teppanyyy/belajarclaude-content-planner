@@ -6,6 +6,7 @@ import {
   deletePostAction,
   updatePostImageAction,
   updatePostDateAction,
+  updatePostThemeAction,
   updatePostContentAction,
 } from "@/app/timeline/actions";
 import CopyButton from "./CopyButton";
@@ -37,6 +38,7 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
   const [imageError, setImageError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [scheduledDate, setScheduledDate] = useState(toDateInputValue(post.scheduledDate));
+  const [theme, setTheme] = useState(post.theme);
   const [panel, setPanel] = useState<"closed" | "view" | "edit">("closed");
   const [caption, setCaption] = useState(post.caption ?? "");
   const [imagePrompt, setImagePrompt] = useState(post.imagePrompt ?? "");
@@ -95,6 +97,35 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
     });
   }
 
+  function handleThemeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setTheme(e.target.value);
+  }
+
+  function commitThemeChange() {
+    const trimmed = theme.trim();
+    if (!trimmed) {
+      setTheme(post.theme);
+      return;
+    }
+    if (trimmed === post.theme) {
+      setTheme(trimmed);
+      return;
+    }
+    setTheme(trimmed);
+    startTransition(async () => {
+      await updatePostThemeAction(post.id, trimmed);
+    });
+  }
+
+  function handleThemeKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      setTheme(post.theme);
+      e.currentTarget.blur();
+    }
+  }
+
   function handleSaveContent() {
     startTransition(async () => {
       await updatePostContentAction(post.id, { caption, imagePrompt });
@@ -142,9 +173,16 @@ export default function PostRow({ post, index }: { post: PostRowData; index: num
           )}
         </td>
         <td className="px-4 py-3">
-          <span className="rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent">
-            {post.theme}
-          </span>
+          <input
+            type="text"
+            value={theme}
+            onChange={handleThemeChange}
+            onBlur={commitThemeChange}
+            onKeyDown={handleThemeKeyDown}
+            disabled={isPending}
+            aria-label="Theme"
+            className="w-full min-w-[8rem] rounded-full border border-transparent bg-accent-light px-3 py-1 text-xs font-medium text-accent focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
         </td>
         <td
           className={`px-4 py-3 font-medium ${
