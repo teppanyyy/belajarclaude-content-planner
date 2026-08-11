@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { generateContentAction, createPostAction, generateImageAction } from "./actions";
+import {
+  generateContentAction,
+  createPostAction,
+  generateImageAction,
+  regenerateCaptionAction,
+} from "./actions";
 import type { ImageInput } from "@/lib/anthropic";
 
 const THEME_SUGGESTIONS = [
@@ -31,6 +36,9 @@ export default function NewPostForm() {
 
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [isGeneratingImage, startGeneratingImage] = useTransition();
+
+  const [captionFeedback, setCaptionFeedback] = useState("");
+  const [isRegeneratingCaption, startRegeneratingCaption] = useTransition();
 
   function handleModeChange(next: Mode) {
     setMode(next);
@@ -78,6 +86,25 @@ export default function NewPostForm() {
         setImagePrompt(result.imagePrompt);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to generate content.");
+      }
+    });
+  }
+
+  function handleRegenerateCaption() {
+    setError(null);
+    startRegeneratingCaption(async () => {
+      try {
+        const revised = await regenerateCaptionAction({
+          theme,
+          topic,
+          currentCaption: caption,
+          feedback: captionFeedback,
+          notes,
+        });
+        setCaption(revised);
+        setCaptionFeedback("");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to revise caption.");
       }
     });
   }
@@ -271,6 +298,35 @@ export default function NewPostForm() {
             }
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
+
+          {!isImportMode && caption.trim() && (
+            <div className="mt-2 space-y-2 rounded-md border border-gray-100 bg-gray-50 p-3">
+              <label className="block text-xs font-medium text-gray-600">
+                Not quite right? Describe the fix and regenerate just the caption
+              </label>
+              <div className="flex gap-2">
+                <input
+                  value={captionFeedback}
+                  onChange={(e) => setCaptionFeedback(e.target.value)}
+                  placeholder="e.g. buat lebih singkat, hilangkan hashtag, nada lebih santai"
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <button
+                  type="button"
+                  onClick={handleRegenerateCaption}
+                  disabled={
+                    isRegeneratingCaption ||
+                    !captionFeedback.trim() ||
+                    !theme.trim() ||
+                    !topic.trim()
+                  }
+                  className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isRegeneratingCaption ? "Revising..." : "Regenerate Caption"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Image prompt</label>

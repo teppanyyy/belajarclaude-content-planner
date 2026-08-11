@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { generateCaptionAndPrompt, type ImageInput } from "@/lib/anthropic";
+import { generateCaptionAndPrompt, reviseCaption, type ImageInput } from "@/lib/anthropic";
 import { getBrandStyleGuide } from "@/lib/brand";
 import { generateImageFromPrompt } from "@/lib/openai";
 
@@ -17,6 +17,25 @@ export async function generateContentAction(
   }
   const styleGuide = await getBrandStyleGuide();
   return generateCaptionAndPrompt(theme, topic, image, notes, styleGuide);
+}
+
+export async function regenerateCaptionAction(params: {
+  theme: string;
+  topic: string;
+  currentCaption: string;
+  feedback: string;
+  notes?: string;
+}) {
+  if (!params.theme.trim() || !params.topic.trim()) {
+    throw new Error("Theme and topic/title are both required.");
+  }
+  if (!params.currentCaption.trim()) {
+    throw new Error("There's no caption to revise yet — generate one first.");
+  }
+  if (!params.feedback.trim()) {
+    throw new Error("Describe what you'd like changed about the caption.");
+  }
+  return reviseCaption(params);
 }
 
 export async function generateImageAction(

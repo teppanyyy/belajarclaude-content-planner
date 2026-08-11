@@ -45,7 +45,14 @@ export type ImageInput = {
  * Generates an Instagram caption + an AI image prompt for a given
  * theme/topic, using Claude. If a reference image is provided, Claude
  * looks at it (vision) and lets the caption reflect what's in it.
- * Returns structured JSON.
+ *
+ * Response format: plain text with CAPTION: / IMAGE_PROMPT: markers,
+ * NOT JSON. Captions routinely contain literal double quotes (quoted
+ * phrases, dialogue, "air quotes") which the model doesn't always escape
+ * correctly inside a JSON string — that produced invalid JSON that then
+ * fell through to a raw-text fallback, dumping the whole response into
+ * the caption box with an empty image prompt. Plain text with simple
+ * markers has no escaping to get wrong.
  */
 export async function generateCaptionAndPrompt(
   theme: string,
@@ -81,8 +88,13 @@ ${styleInstructions}
 
 ${specificityInstructions}
 
-Respond with ONLY raw JSON and nothing else — no markdown code fences (no \`\`\`), no commentary before or after, no leading/trailing whitespace beyond the object itself. The entire response body must be exactly this shape and nothing more:
-{"caption": "...", "imagePrompt": "..."}`;
+Respond with ONLY the following two sections, in exactly this format, and nothing else — no JSON, no markdown code fences (no \`\`\`), no commentary before or after either section:
+
+CAPTION:
+<the full caption text goes here — quotes, emoji, hashtags, and line breaks are all fine, write it exactly as it should appear>
+
+IMAGE_PROMPT:
+<the full image prompt text goes here>`;
 
   const userText = `Theme: ${theme}\nTopic/idea: ${topic}${
     notes && notes.trim() ? `\nAdditional instructions: ${notes.trim()}` : ""
@@ -115,6 +127,52 @@ Respond with ONLY raw JSON and nothing else — no markdown code fences (no \`\`
   return parseGeneratedContent(raw);
 }
 
+/**
+ * Revises an existing caption based on specific user feedback (e.g. "make
+ * it shorter", "add more urgency", "remove the hashtags"), keeping the
+ * same brand voice. The image prompt is left untouched by this call.
+ *
+ * Plain text response — a single string has nothing to escape, so this
+ * is not susceptible to the JSON-parsing issue above at all.
+ */
+export async function reviseCaption(params: {
+  theme: string;
+  topic: string;
+  currentCaption: string;
+  feedback: string;
+  notes?: string;
+}): Promise<string> {
+  const anthropic = getAnthropicClient();
+  const { theme, topic, currentCaption, feedback, notes } = params;
+
+  const systemPrompt = `${BRAND_CONTEXT}
+
+You are revising an existing Instagram caption based on specific feedback from the person managing this account. Keep the brand voice and roughly the same length unless the feedback says otherwise. Apply the feedback precisely — don't rewrite parts that weren't flagged.
+
+Respond with ONLY the revised caption text and nothing else — no JSON, no markdown code fences, no quotation marks wrapping the whole caption, no preamble like "Here's the revised caption:".`;
+
+  const userText = `Theme: ${theme}\nTopic/idea: ${topic}${
+    notes && notes.trim() ? `\nAdditional instructions: ${notes.trim()}` : ""
+  }\n\nCurrent caption:\n${currentCaption}\n\nFeedback — revise the caption to address this:\n${feedback}\n\nWrite the revised caption now.`;
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userText }],
+  });
+
+  const textBlock = response.content.find((block) => block.type === "text");
+  const raw = textBlock && "text" in textBlock ? textBlock.text : "";
+
+  return raw
+    .trim()
+    .replace(/^```(?:\w*)?\s*/, "")
+    .replace(/```\s*$/, "")
+    .replace(/^"([\s\S]*)"$/, "$1")
+    .trim();
+}
+
 export type WeeklyPlanItem = {
   theme: string;
   title: string;
@@ -135,10 +193,9 @@ export async function generateWeeklyPlan(params: {
   notes?: string;
   image?: ImageInput;
   styleGuide?: string;
-  existingPosts?: { theme: string; title: string }[];
 }): Promise<WeeklyPlanItem[]> {
   const anthropic = getAnthropicClient();
-  const { count, themes, audience, notes, image, styleGuide, existingPosts } = params;
+  const { count, themes, audience, notes, image, styleGuide } = params;
 
   const styleInstructions = styleGuide
     ? `Every image prompt you write MUST follow this exact brand visual style guide, adapting only the headline/content per post to fit each topic:\n${styleGuide}${
@@ -157,13 +214,6 @@ export async function generateWeeklyPlan(params: {
 - Describe the exact layout, spacing, and logo placement from the style guide as concrete instructions, not a general impression.
 - If additional instructions/notes are given below, make sure anything specific in them (exact wording, elements to include or exclude, layout tweaks) is reflected in every image prompt, not only the captions.`;
 
-  const existingPostsInstructions =
-    existingPosts && existingPosts.length > 0
-      ? `\n\nAVOID REPEATING PAST CONTENT\nThe following posts have already been created/published — do not reuse the same topic, angle, or headline as any of these. Every post in this new batch must be a genuinely new idea within the themes below, even if it revisits a broad theme:\n${existingPosts
-          .map((p) => `- [${p.theme}] ${p.title}`)
-          .join("\n")}`
-      : "";
-
   const systemPrompt = `${BRAND_CONTEXT}
 
 Target audience for this specific batch: ${audience}
@@ -171,7 +221,6 @@ Target audience for this specific batch: ${audience}
 ${styleInstructions}
 
 ${specificityInstructions}
-${existingPostsInstructions}
 
 Rotate across these themes, distributing them naturally across the posts (repeat themes as needed to fill the count, weighting earlier themes in the list a bit more heavily): ${themes.join(
     ", "
@@ -180,7 +229,9 @@ Rotate across these themes, distributing them naturally across the posts (repeat
 ${notes && notes.trim() ? `Additional instructions for this batch: ${notes.trim()}` : ""}
 
 Generate exactly ${count} posts. Respond with ONLY a raw JSON array and nothing else — no markdown code fences, no commentary before or after. Each item must have exactly this shape:
-{"theme": "...", "title": "...", "caption": "...", "imagePrompt": "..."}`;
+{"theme": "...", "title": "...", "caption": "...", "imagePrompt": "..."}
+
+Every string value must be valid JSON: escape any double quote characters that appear inside the caption or imagePrompt text as \\" so the result parses as valid JSON.`;
 
   const userText = `Generate the ${count}-post content plan now.`;
 
@@ -245,19 +296,33 @@ function parseWeeklyPlan(raw: string): WeeklyPlanItem[] {
 }
 
 /**
- * Parses Claude's JSON response into {caption, imagePrompt}. Handles the
- * common cases where the model wraps the JSON in markdown code fences or
- * adds stray text before/after it, so the caption box never ends up with
- * raw JSON dumped into it.
+ * Parses Claude's response into {caption, imagePrompt}.
+ *
+ * Preferred format is plain text with CAPTION: / IMAGE_PROMPT: markers
+ * (see generateCaptionAndPrompt above) — no escaping involved, so this
+ * can't produce the "raw JSON dumped into caption" failure mode.
+ *
+ * A legacy JSON parser is kept as a fallback only, in case the model
+ * ever reverts to the old JSON-shaped response despite the prompt.
  */
 function parseGeneratedContent(raw: string): GeneratedContent {
   const cleaned = raw
     .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/```\s*$/i, "")
+    .replace(/^```(?:\w*)?\s*/, "")
+    .replace(/```\s*$/, "")
     .trim();
 
-  const tryParse = (text: string) => {
+  const markerMatch = cleaned.match(
+    /CAPTION:\s*([\s\S]*?)\s*IMAGE_PROMPT:\s*([\s\S]*)$/i
+  );
+  if (markerMatch) {
+    return {
+      caption: markerMatch[1].trim(),
+      imagePrompt: markerMatch[2].trim(),
+    };
+  }
+
+  const tryParseJson = (text: string) => {
     const parsed = JSON.parse(text);
     return {
       caption: String(parsed.caption ?? "").trim(),
@@ -266,20 +331,19 @@ function parseGeneratedContent(raw: string): GeneratedContent {
   };
 
   try {
-    return tryParse(cleaned);
+    return tryParseJson(cleaned);
   } catch {
-    // Fallback: pull out the first {...} block in case there's still
-    // stray text surrounding the JSON, and try again.
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) {
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
       try {
-        return tryParse(match[0]);
+        return tryParseJson(jsonMatch[0]);
       } catch {
         // fall through to the final fallback below
       }
     }
-    // Last resort: surface the raw text as the caption so nothing is
-    // silently lost, but this should be rare now.
-    return { caption: cleaned, imagePrompt: "" };
   }
+
+  // Last resort: surface the raw text as the caption so nothing is
+  // silently lost, but this should be rare now.
+  return { caption: cleaned, imagePrompt: "" };
 }
