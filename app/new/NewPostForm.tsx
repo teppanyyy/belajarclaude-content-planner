@@ -11,8 +11,11 @@ const THEME_SUGGESTIONS = [
   "Untuk Pemula",
 ];
 
+type Mode = "generate" | "import";
+
 export default function NewPostForm() {
   const router = useRouter();
+  const [mode, setMode] = useState<Mode>("generate");
   const [theme, setTheme] = useState("");
   const [topic, setTopic] = useState("");
   const [caption, setCaption] = useState("");
@@ -28,6 +31,11 @@ export default function NewPostForm() {
 
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [isGeneratingImage, startGeneratingImage] = useTransition();
+
+  function handleModeChange(next: Mode) {
+    setMode(next);
+    setError(null);
+  }
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -105,13 +113,42 @@ export default function NewPostForm() {
     });
   }
 
+  const isImportMode = mode === "import";
+
   return (
     <div className="max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Add New Content</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Enter a theme and topic, then generate a caption + image prompt with Claude.
+          {isImportMode
+            ? "Already have a caption and image prompt from somewhere else? Paste them in and upload the image — no generation needed."
+            : "Enter a theme and topic, then generate a caption + image prompt with Claude."}
         </p>
+      </div>
+
+      <div className="inline-flex rounded-md border border-gray-200 bg-gray-50 p-1 text-sm">
+        <button
+          type="button"
+          onClick={() => handleModeChange("generate")}
+          className={`rounded px-3 py-1.5 font-medium transition-colors ${
+            mode === "generate"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Generate with Claude
+        </button>
+        <button
+          type="button"
+          onClick={() => handleModeChange("import")}
+          className={`rounded px-3 py-1.5 font-medium transition-colors ${
+            mode === "import"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          I already have content
+        </button>
       </div>
 
       {error && (
@@ -136,7 +173,9 @@ export default function NewPostForm() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Topic / idea</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            {isImportMode ? "Post title" : "Topic / idea"}
+          </label>
           <input
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
@@ -145,18 +184,20 @@ export default function NewPostForm() {
           />
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            Additional prompt / notes (optional)
-          </label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="Any extra instructions for Claude — tone, specific points to hit, things to avoid, etc."
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-        </div>
+        {!isImportMode && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Additional prompt / notes (optional)
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Any extra instructions for Claude — tone, specific points to hit, things to avoid, etc."
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -172,10 +213,12 @@ export default function NewPostForm() {
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
-            Reference image (optional)
+            {isImportMode ? "Post image" : "Reference image (optional)"}
           </label>
           <p className="mb-2 text-xs text-gray-500">
-            Attach a photo or screenshot and Claude will look at it while writing the caption.
+            {isImportMode
+              ? "Upload the final image for this post — it's saved as-is, no AI generation involved."
+              : "Attach a photo or screenshot and Claude will look at it while writing the caption."}
           </p>
           <input
             type="file"
@@ -202,14 +245,16 @@ export default function NewPostForm() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={isGenerating || !theme.trim() || !topic.trim()}
-          className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isGenerating ? "Generating with Claude..." : "Generate Caption + Image Prompt"}
-        </button>
+        {!isImportMode && (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={isGenerating || !theme.trim() || !topic.trim()}
+            className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isGenerating ? "Generating with Claude..." : "Generate Caption + Image Prompt"}
+          </button>
+        )}
       </div>
 
       <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-6">
@@ -219,7 +264,11 @@ export default function NewPostForm() {
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             rows={5}
-            placeholder="Generated caption will appear here — edit freely before saving."
+            placeholder={
+              isImportMode
+                ? "Paste your ready-made caption here."
+                : "Generated caption will appear here — edit freely before saving."
+            }
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
@@ -229,42 +278,48 @@ export default function NewPostForm() {
             value={imagePrompt}
             onChange={(e) => setImagePrompt(e.target.value)}
             rows={3}
-            placeholder="Generated AI image prompt will appear here."
+            placeholder={
+              isImportMode
+                ? "Paste your ready-made image prompt here."
+                : "Generated AI image prompt will appear here."
+            }
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
 
-        <div>
-          <button
-            type="button"
-            onClick={handleGenerateImage}
-            disabled={isGeneratingImage || !imagePrompt.trim()}
-            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isGeneratingImage ? "Generating image with OpenAI..." : "Generate Image from Prompt"}
-          </button>
-          <p className="mt-1 text-xs text-gray-400">
-            Renders the image prompt above into an actual picture (costs a small amount per
-            image via OpenAI). This is what gets saved with the post.
-          </p>
-          {generatedImageUrl && (
-            <div className="mt-3 flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={generatedImageUrl}
-                alt="Generated post image"
-                className="h-32 w-32 rounded-md border border-gray-200 object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => setGeneratedImageUrl(null)}
-                className="text-xs font-medium text-gray-500 hover:text-red-500"
-              >
-                Remove generated image
-              </button>
-            </div>
-          )}
-        </div>
+        {!isImportMode && (
+          <div>
+            <button
+              type="button"
+              onClick={handleGenerateImage}
+              disabled={isGeneratingImage || !imagePrompt.trim()}
+              className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isGeneratingImage ? "Generating image with OpenAI..." : "Generate Image from Prompt"}
+            </button>
+            <p className="mt-1 text-xs text-gray-400">
+              Renders the image prompt above into an actual picture (costs a small amount per
+              image via OpenAI). This is what gets saved with the post.
+            </p>
+            {generatedImageUrl && (
+              <div className="mt-3 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={generatedImageUrl}
+                  alt="Generated post image"
+                  className="h-32 w-32 rounded-md border border-gray-200 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setGeneratedImageUrl(null)}
+                  className="text-xs font-medium text-gray-500 hover:text-red-500"
+                >
+                  Remove generated image
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <button
