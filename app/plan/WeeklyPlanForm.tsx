@@ -10,14 +10,6 @@ import {
 import type { ImageInput, WeeklyPlanItem } from "@/lib/anthropic";
 import ThemeMultiSelect from "@/components/ThemeMultiSelect";
 
-const DEFAULT_THEME_OPTIONS = [
-  "Learn Claude",
-  "Prompt Library",
-  "Claude for Work",
-  "Mistakes & Myths",
-  "News & Updates",
-];
-
 const DEFAULT_AUDIENCE =
   "Small business owners, beginners, freelancers, students, and people who are not very tech-savvy and new to learning AI, based in Indonesia.";
 
@@ -33,13 +25,17 @@ function addDays(dateStr: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-export default function WeeklyPlanForm() {
+export default function WeeklyPlanForm({
+  initialThemeOptions,
+}: {
+  initialThemeOptions: string[];
+}) {
   const router = useRouter();
 
   // Setup form state
   const [count, setCount] = useState(10);
-  const [themeOptions, setThemeOptions] = useState<string[]>(DEFAULT_THEME_OPTIONS);
-  const [selectedThemes, setSelectedThemes] = useState<string[]>(DEFAULT_THEME_OPTIONS);
+  const [themeOptions, setThemeOptions] = useState<string[]>(initialThemeOptions);
+  const [selectedThemes, setSelectedThemes] = useState<string[]>(initialThemeOptions);
   const [audience, setAudience] = useState(DEFAULT_AUDIENCE);
   const [notes, setNotes] = useState("");
   const [startDate, setStartDate] = useState("");

@@ -9,18 +9,18 @@ import {
   regenerateCaptionAction,
 } from "./actions";
 import type { ImageInput } from "@/lib/anthropic";
-
-const THEME_SUGGESTIONS = [
-  "Prompt of the Day",
-  "AI untuk Bisnis",
-  "Untuk Pemula",
-];
+import ThemeSelect from "@/components/ThemeSelect";
 
 type Mode = "generate" | "import";
 
-export default function NewPostForm() {
+export default function NewPostForm({
+  initialThemeOptions,
+}: {
+  initialThemeOptions: string[];
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("generate");
+  const [themeOptions, setThemeOptions] = useState<string[]>(initialThemeOptions);
   const [theme, setTheme] = useState("");
   const [topic, setTopic] = useState("");
   const [caption, setCaption] = useState("");
@@ -75,6 +75,10 @@ export default function NewPostForm() {
   function handleRemoveImage() {
     setImageData(null);
     setImagePreview(null);
+  }
+
+  function handleAddThemeOption(theme: string) {
+    setThemeOptions((prev) => (prev.includes(theme) ? prev : [...prev, theme]));
   }
 
   function handleGenerate() {
@@ -185,18 +189,13 @@ export default function NewPostForm() {
       <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-6">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Theme</label>
-          <input
+          <ThemeSelect
+            options={themeOptions}
             value={theme}
-            onChange={(e) => setTheme(e.target.value)}
+            onChange={setTheme}
+            onAddOption={handleAddThemeOption}
             placeholder="e.g. Prompt of the Day"
-            list="theme-suggestions"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
-          <datalist id="theme-suggestions">
-            {THEME_SUGGESTIONS.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
         </div>
 
         <div>
