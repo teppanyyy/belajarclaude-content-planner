@@ -8,14 +8,15 @@ import {
   generateRowImageAction,
 } from "./actions";
 import type { ImageInput, WeeklyPlanItem } from "@/lib/anthropic";
+import ThemeMultiSelect from "@/components/ThemeMultiSelect";
 
-const DEFAULT_THEMES = [
-  "🟣 Prompt of the Day",
-  "💼 AI untuk Bisnis",
-  "🧠 Untuk Pemula",
-  "💡 AI Tips",
-  "🎓 BelajarClaude Promotion",
-].join("\n");
+const DEFAULT_THEME_OPTIONS = [
+  "Learn Claude",
+  "Prompt Library",
+  "Claude for Work",
+  "Mistakes & Myths",
+  "News & Updates",
+];
 
 const DEFAULT_AUDIENCE =
   "Small business owners, beginners, freelancers, students, and people who are not very tech-savvy and new to learning AI, based in Indonesia.";
@@ -37,7 +38,8 @@ export default function WeeklyPlanForm() {
 
   // Setup form state
   const [count, setCount] = useState(10);
-  const [themesText, setThemesText] = useState(DEFAULT_THEMES);
+  const [themeOptions, setThemeOptions] = useState<string[]>(DEFAULT_THEME_OPTIONS);
+  const [selectedThemes, setSelectedThemes] = useState<string[]>(DEFAULT_THEME_OPTIONS);
   const [audience, setAudience] = useState(DEFAULT_AUDIENCE);
   const [notes, setNotes] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -81,12 +83,24 @@ export default function WeeklyPlanForm() {
     setImagePreview(null);
   }
 
+  function toggleTheme(theme: string) {
+    setSelectedThemes((prev) =>
+      prev.includes(theme) ? prev.filter((t) => t !== theme) : [...prev, theme]
+    );
+  }
+
+  function addThemeOption(theme: string) {
+    setThemeOptions((prev) => [...prev, theme]);
+    setSelectedThemes((prev) => [...prev, theme]);
+  }
+
   function handleGenerate() {
     setError(null);
-    const themes = themesText
-      .split("\n")
-      .map((t) => t.trim())
-      .filter(Boolean);
+    if (selectedThemes.length === 0) {
+      setError("Select at least one theme to rotate through.");
+      return;
+    }
+    const themes = selectedThemes;
 
     startGenerating(async () => {
       try {
@@ -209,13 +223,13 @@ export default function WeeklyPlanForm() {
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
-            Themes to rotate through (one per line)
+            Themes to rotate through
           </label>
-          <textarea
-            value={themesText}
-            onChange={(e) => setThemesText(e.target.value)}
-            rows={5}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          <ThemeMultiSelect
+            options={themeOptions}
+            selected={selectedThemes}
+            onToggle={toggleTheme}
+            onAddOption={addThemeOption}
           />
         </div>
 
