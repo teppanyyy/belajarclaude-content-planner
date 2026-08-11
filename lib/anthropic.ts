@@ -193,9 +193,10 @@ export async function generateWeeklyPlan(params: {
   notes?: string;
   image?: ImageInput;
   styleGuide?: string;
+  existingPosts?: { theme: string; title: string }[];
 }): Promise<WeeklyPlanItem[]> {
   const anthropic = getAnthropicClient();
-  const { count, themes, audience, notes, image, styleGuide } = params;
+  const { count, themes, audience, notes, image, styleGuide, existingPosts } = params;
 
   const styleInstructions = styleGuide
     ? `Every image prompt you write MUST follow this exact brand visual style guide, adapting only the headline/content per post to fit each topic:\n${styleGuide}${
@@ -225,6 +226,14 @@ ${specificityInstructions}
 Rotate across these themes, distributing them naturally across the posts (repeat themes as needed to fill the count, weighting earlier themes in the list a bit more heavily): ${themes.join(
     ", "
   )}.
+
+${
+  existingPosts && existingPosts.length > 0
+    ? `Do not repeat any of these already-planned or already-published posts — give every new post a distinct title and angle from all of them:\n${existingPosts
+        .map((p) => `- [${p.theme}] ${p.title}`)
+        .join("\n")}`
+    : ""
+}
 
 ${notes && notes.trim() ? `Additional instructions for this batch: ${notes.trim()}` : ""}
 
