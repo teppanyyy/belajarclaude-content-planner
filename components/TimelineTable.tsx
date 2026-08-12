@@ -26,7 +26,7 @@ export default function TimelineTable({ posts }: { posts: PostRowData[] }) {
           onChange={(e) => setThemeFilter(e.target.value)}
           className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         >
-          <option value="all">All themes ({posts.length})</option>
+          <option value="all">All themes ({themes.length}) — {posts.length} posts</option>
           {themes.map((theme) => (
             <option key={theme} value={theme}>
               {theme} ({posts.filter((p) => p.theme === theme).length})
